@@ -33,6 +33,8 @@ func WalkPlaylist(playlist *PlaylistResp) []*MusicInfo {
 			MusicPic:      track.Album.PicUrl,
 			MusicLocal:    "",
 			MusicPicLocal: "",
+			Ctrl:          nil,
+			PlayStatus:    make(chan PlayStatus),
 		}
 		for _, artist := range track.Artists {
 			music.ArtistsName += artist.Name + ","

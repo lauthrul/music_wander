@@ -3,12 +3,12 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/faiface/beep"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-	"wander/helper"
 )
 
 /*
@@ -43,6 +43,14 @@ type LinkInfo struct {
 	} `json:"data"`
 }
 
+type PlayStatus uint
+
+const (
+	PlayStatusPaused   PlayStatus = 0
+	PlayStatusPlaying             = 1
+	PlayStatusFinished            = 2
+)
+
 type MusicInfo struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
@@ -51,6 +59,8 @@ type MusicInfo struct {
 	MusicPic      string `json:"music_pic"`
 	MusicLocal    string `json:"music_local"`
 	MusicPicLocal string `json:"music_pic_local"`
+	Ctrl          *beep.Ctrl
+	PlayStatus    chan PlayStatus
 }
 
 type CacheType uint
@@ -100,7 +110,7 @@ func CheckCaches(path, name string, typ CacheType) (map[CacheType]string, bool) 
 }
 
 func Download(uri, split, fileName string) (string, error) {
-	data, _, err := helper.HttpDoTimeout(nil, "GET", uri, nil, 30*time.Second)
+	data, _, err := HttpDoTimeout(nil, "GET", uri, nil, 30*time.Second)
 	if err != nil {
 		return "", err
 	}
@@ -120,7 +130,7 @@ func RequestNext() (*MusicInfo, error) {
 	)
 
 	// get random randomInfo info
-	data, _, err := helper.HttpDoTimeout(nil, "GET", RandomUrl, nil, 30*time.Second)
+	data, _, err := HttpDoTimeout(nil, "GET", RandomUrl, nil, 30*time.Second)
 	//fmt.Println(code, err, string(data))
 	if err != nil {
 		return nil, err
@@ -153,7 +163,7 @@ func RequestNext() (*MusicInfo, error) {
 	}
 
 	// download music
-	data, _, err = helper.HttpDoTimeout(nil, "GET", fmt.Sprintf(LinkUrl, musicInfo.ID), nil, 30*time.Second)
+	data, _, err = HttpDoTimeout(nil, "GET", fmt.Sprintf(LinkUrl, musicInfo.ID), nil, 30*time.Second)
 	//fmt.Println(code, err, string(data))
 	if err != nil {
 		return nil, err

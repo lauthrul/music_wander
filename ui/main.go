@@ -6,20 +6,28 @@ import (
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 	"time"
-	"wander/helper"
 	"wander/model"
 )
 
+const (
+	TextPlay     = "▶"
+	TextPause    = "||"
+	TextPlayPrev = "◀◀"
+	TextPlayNext = "▶▶"
+)
+
 type MyMainWindow struct {
-	// ui
 	*walk.MainWindow
-	btnPrev     *walk.PushButton
-	btnPlay     *walk.PushButton
-	btnNext     *walk.PushButton
-	imgCover    *walk.ImageView
-	lblName     *walk.Label
-	lbPlayList  *walk.ListBox
-	lbTrackList *walk.ListBox
+
+	// ui
+	lbPlayList        *walk.ListBox
+	lbTrackList       *walk.ListBox
+	lblCurrentPlaying *walk.LinkLabel
+	imgCover          *walk.ImageView
+	lblName           *walk.Label
+	btnPrev           *walk.PushButton
+	btnPlay           *walk.PushButton
+	btnNext           *walk.PushButton
 
 	// data
 	playList  *PlaylistModel
@@ -34,15 +42,36 @@ func (mw *MyMainWindow) updateMusicUI(music *model.MusicInfo) {
 	}
 	mw.imgCover.SetImage(img)
 	mw.lblName.SetText(music.Name + " - " + music.ArtistsName)
+	current := model.CurrentMusic()
+	if current.MusicLocal != "" && current.MusicLocal == music.MusicLocal {
+		mw.btnPlay.SetText(TextPause)
+	} else {
+		mw.btnPlay.SetText(TextPlay)
+	}
+}
+
+func (mw *MyMainWindow) onGotoTackList(link *walk.LinkLabelLink) {
+	current := model.CurrentMusic()
+	idx := -1
+	for i, m := range mw.musicList.items {
+		if m.ID == current.ID {
+			idx = i
+			break
+		}
+	}
+	mw.lbTrackList.SetCurrentIndex(idx)
 }
 
 func (mw *MyMainWindow) onPlaylistChanged() {
 	mw.Synchronize(func() {
-		item := mw.playList.items[mw.lbPlayList.CurrentIndex()]
+		idx := mw.lbPlayList.CurrentIndex()
+		if idx < 0 || idx >= len(mw.playList.items) {
+			return
+		}
+		item := mw.playList.items[idx]
 		url := fmt.Sprintf(model.Playlist, item.ID)
-		data, _, err := helper.HttpDoTimeout(nil, "GET", url, nil, 30*time.Second)
+		data, _, err := model.HttpDoTimeout(nil, "GET", url, nil, 30*time.Second)
 		if err != nil {
-			//fmt.Printf("get playList[%s] fail, err:%s", url, err.Error())
 			return
 		}
 		var playlist model.PlaylistResp
@@ -51,7 +80,6 @@ func (mw *MyMainWindow) onPlaylistChanged() {
 			return
 		}
 		if playlist.Code != 200 {
-			//fmt.Printf("get playList[%s] fail, code:%d", url, playlist.Code)
 			return
 		}
 
@@ -63,7 +91,11 @@ func (mw *MyMainWindow) onPlaylistChanged() {
 func (mw *MyMainWindow) onTrackListChanged() {
 	mw.Synchronize(func() {
 		var err error
-		music := mw.musicList.items[mw.lbTrackList.CurrentIndex()]
+		idx := mw.lbTrackList.CurrentIndex()
+		if idx < 0 || idx >= len(mw.musicList.items) {
+			return
+		}
+		music := mw.musicList.items[idx]
 		fileName := fmt.Sprintf("%s-%s", music.Name, music.ArtistsName)
 		res, ok := model.CheckCaches("cache", fileName, model.CachePic)
 		if ok {
@@ -72,7 +104,6 @@ func (mw *MyMainWindow) onTrackListChanged() {
 			// download music pic
 			music.MusicPicLocal, err = model.Download(music.MusicPic, "/", fileName)
 			if err != nil {
-				fmt.Printf("cache music pic[%s : %s] fail:%s", fileName, music.MusicPic, err.Error())
 				return
 			}
 		}
@@ -80,12 +111,13 @@ func (mw *MyMainWindow) onTrackListChanged() {
 	})
 }
 
-func (mw *MyMainWindow) onPlayPrev() {
-}
-
-func (mw *MyMainWindow) onPlay() {
-	mw.Synchronize(func() {
-		music := mw.musicList.items[mw.lbTrackList.CurrentIndex()]
+func (mw *MyMainWindow) play(idx int) {
+	if idx < 0 || idx > len(mw.musicList.items) {
+		fmt.Println("playlist idx err:", idx)
+		return
+	}
+	music := mw.musicList.items[idx]
+	if music.MusicLocal == "" {
 		fileName := fmt.Sprintf("%s-%s", music.Name, music.ArtistsName)
 		res, ok := model.CheckCaches("cache", fileName, model.CacheMusic)
 		if ok {
@@ -93,40 +125,76 @@ func (mw *MyMainWindow) onPlay() {
 		} else {
 			// download music
 			link := fmt.Sprintf(model.LinkUrl, music.ID)
-			data, _, err := helper.HttpDoTimeout(nil, "GET", link, nil, 2*time.Minute)
-			//fmt.Println(code, err, string(data))
+			data, _, err := model.HttpDoTimeout(nil, "GET", link, nil, 2*time.Minute)
 			if err != nil {
-				//fmt.Printf("get music real link[%s : %s] fail:%s", fileName, link, err.Error())
 				return
 			}
 			var linkInfo model.LinkInfo
 			err = json.Unmarshal(data, &linkInfo)
 			if err != nil {
-				//fmt.Printf("parse music real link[%s : %s] fail:%s", fileName, link, err.Error())
 				return
 			}
 			if linkInfo.Code != 200 {
-				//fmt.Printf("music real link[%s : %s] http code err:%d", fileName, link, linkInfo.Code)
+				fmt.Println(err)
 				return
 			}
 			music.MusicUrl = linkInfo.Data.Url
 			music.MusicLocal, err = model.Download(music.MusicUrl, "/", fileName)
 			if err != nil {
-				//fmt.Printf("cache music [%s : %s] http code err:%d", fileName, music.MusicUrl, linkInfo.Code)
 				return
 			}
 		}
-		// play music
+	}
+	// play music
+	go func() {
+		model.Play(music)
+		text := TextPause
+		if music.Ctrl.Paused {
+			text = TextPlay
+		}
+		mw.btnPlay.SetText(text)
+		//for {
+			select {
+			case status := <-music.PlayStatus:
+				fmt.Println(status)
+				mw.btnPlay.SetText(TextPlay)
+				mw.onPlayNext()
+				return
+			//default:
+			//	fmt.Println("default")
+			}
+		//}
+	}()
+}
+
+func (mw *MyMainWindow) onPlayPrev() {
+	mw.Synchronize(func() {
+		idx := mw.lbTrackList.CurrentIndex() - 1
+		if idx < 0 {
+			idx = len(mw.musicList.items) - 1
+		}
+		mw.lbTrackList.SetCurrentIndex(idx)
+		mw.play(idx)
+	})
+}
+
+func (mw *MyMainWindow) onPlay() {
+	mw.Synchronize(func() {
+		mw.play(mw.lbTrackList.CurrentIndex())
+		mw.lblCurrentPlaying.SetText(fmt.Sprintf("当前播放： <a>%s</a>", mw.lblName.Text()))
 	})
 }
 
 func (mw *MyMainWindow) onPlayNext() {
-	resp, err := model.RequestNext()
-	if err != nil {
-		fmt.Println("request next err:", err)
-		return
-	}
-	mw.updateMusicUI(resp)
+	mw.Synchronize(func() {
+		idx := mw.lbTrackList.CurrentIndex() + 1
+		max := len(mw.musicList.items) - 1
+		if idx > max {
+			idx = 0
+		}
+		mw.lbTrackList.SetCurrentIndex(idx)
+		mw.play(idx)
+	})
 }
 
 func Run() {
@@ -172,6 +240,11 @@ func Run() {
 			Composite{
 				Layout: VBox{},
 				Children: []Widget{
+					LinkLabel{
+						AssignTo:        &mw.lblCurrentPlaying,
+						Text:            "当前播放：",
+						OnLinkActivated: mw.onGotoTackList,
+					},
 					ImageView{
 						AssignTo: &mw.imgCover,
 						//Background: SolidColorBrush{Color: walk.RGB(0, 0, 0)},
@@ -193,17 +266,17 @@ func Run() {
 						Children: []Widget{
 							PushButton{
 								AssignTo:  &mw.btnPrev,
-								Text:      "◀◀",
+								Text:      TextPlayPrev,
 								OnClicked: mw.onPlayPrev,
 							},
 							PushButton{
 								AssignTo:  &mw.btnPlay,
-								Text:      "▶ / ||",
+								Text:      TextPlay,
 								OnClicked: mw.onPlay,
 							},
 							PushButton{
 								AssignTo:  &mw.btnNext,
-								Text:      "▶▶",
+								Text:      TextPlayNext,
 								OnClicked: mw.onPlayNext,
 							},
 						},

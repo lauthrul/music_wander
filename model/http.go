@@ -1,4 +1,4 @@
-package helper
+package model
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 
 var fc = &fasthttp.Client{}
 
-func HttpDoTimeout(requestBody []byte, method string, requestURI string, headers map[string]string, timeout time.Duration) ([]byte, int, error) {
+func HttpDoTimeout(body []byte, method string, uri string, headers map[string]string, timeout time.Duration) ([]byte, int, error) {
 
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
@@ -18,12 +18,12 @@ func HttpDoTimeout(requestBody []byte, method string, requestURI string, headers
 		fasthttp.ReleaseRequest(req)
 	}()
 
-	req.SetRequestURI(requestURI)
+	req.SetRequestURI(uri)
 	req.Header.SetMethod(method)
 
 	switch method {
-	case "POST":
-		req.SetBody(requestBody)
+	case fasthttp.MethodPost:
+		req.SetBody(body)
 	}
 
 	if headers != nil {
@@ -35,7 +35,7 @@ func HttpDoTimeout(requestBody []byte, method string, requestURI string, headers
 	// time.Second * 30
 	err := fc.DoTimeout(req, resp, timeout)
 
-	fmt.Printf("%s -> [%d] %v\n", requestURI, resp.StatusCode(), err)
+	fmt.Printf("%s -> [%d] %v\n", uri, resp.StatusCode(), err)
 
 	return resp.Body(), resp.StatusCode(), err
 }
