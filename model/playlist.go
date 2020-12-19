@@ -22,10 +22,10 @@ type PlaylistResp struct {
 	} `json:"result"`
 }
 
-func WalkPlaylist(playlist *PlaylistResp) []MusicInfo {
-	var musics []MusicInfo
+func WalkPlaylist(playlist *PlaylistResp) []*MusicInfo {
+	var musics []*MusicInfo
 	for _, track := range playlist.Result.Tracks {
-		music := MusicInfo{
+		music := &MusicInfo{
 			ID:            fmt.Sprintf("%d", track.ID),
 			Name:          track.Name,
 			ArtistsName:   "",

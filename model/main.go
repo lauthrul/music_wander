@@ -53,6 +53,14 @@ type MusicInfo struct {
 	MusicPicLocal string `json:"music_pic_local"`
 }
 
+type CacheType uint
+
+const (
+	CachePic   CacheType = 1 << 0
+	CacheMusic           = 1 << 1
+	CacheAll             = CachePic | CacheMusic
+)
+
 var (
 	PicExts = map[string]bool{
 		".jpg":  true,
@@ -68,23 +76,27 @@ var (
 	}
 )
 
-func CheckCaches(path, name string) (string, string, bool) {
+func CheckCaches(path, name string, typ CacheType) (map[CacheType]string, bool) {
 	var (
-		pic, music string
+		res      = map[CacheType]string{}
+		fitTypes CacheType
 	)
-	_ = filepath.Walk("cache", func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if strings.Index(info.Name(), name) >= 0 {
 			ext := filepath.Ext(info.Name())
-			if PicExts[ext] {
-				pic = path
-			} else if MusicExts[ext] {
-				music = path
+			if typ&CachePic == CachePic && PicExts[ext] {
+				res[CachePic] = path
+				fitTypes |= CachePic
+			}
+			if typ&CacheMusic == CacheMusic && MusicExts[ext] {
+				res[CacheMusic] = path
+				fitTypes |= CacheMusic
 			}
 		}
 		return nil
 	})
 
-	return pic, music, pic != "" && music != ""
+	return res, fitTypes == typ
 }
 
 func Download(uri, split, fileName string) (string, error) {
@@ -108,8 +120,8 @@ func RequestNext() (*MusicInfo, error) {
 	)
 
 	// get random randomInfo info
-	data, code, err := helper.HttpDoTimeout(nil, "GET", RandomUrl, nil, 30*time.Second)
-	fmt.Println(code, err, string(data))
+	data, _, err := helper.HttpDoTimeout(nil, "GET", RandomUrl, nil, 30*time.Second)
+	//fmt.Println(code, err, string(data))
 	if err != nil {
 		return nil, err
 	}
@@ -128,9 +140,9 @@ func RequestNext() (*MusicInfo, error) {
 
 	fileName := fmt.Sprintf("%s-%s", musicInfo.Name, musicInfo.ArtistsName)
 
-	if pic, music, exist := CheckCaches("cache", fileName); exist {
-		musicInfo.MusicPicLocal = pic
-		musicInfo.MusicLocal = music
+	if res, ok := CheckCaches("cache", fileName, CacheAll); ok {
+		musicInfo.MusicPicLocal = res[CachePic]
+		musicInfo.MusicLocal = res[CacheMusic]
 		return musicInfo, nil
 	}
 
@@ -141,8 +153,8 @@ func RequestNext() (*MusicInfo, error) {
 	}
 
 	// download music
-	data, code, err = helper.HttpDoTimeout(nil, "GET", fmt.Sprintf(LinkUrl, musicInfo.ID), nil, 30*time.Second)
-	fmt.Println(code, err, string(data))
+	data, _, err = helper.HttpDoTimeout(nil, "GET", fmt.Sprintf(LinkUrl, musicInfo.ID), nil, 30*time.Second)
+	//fmt.Println(code, err, string(data))
 	if err != nil {
 		return nil, err
 	}

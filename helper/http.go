@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"fmt"
 	"github.com/valyala/fasthttp"
 	"time"
 )
@@ -33,6 +34,8 @@ func HttpDoTimeout(requestBody []byte, method string, requestURI string, headers
 
 	// time.Second * 30
 	err := fc.DoTimeout(req, resp, timeout)
+
+	fmt.Printf("%s -> [%d] %v\n", requestURI, resp.StatusCode(), err)
 
 	return resp.Body(), resp.StatusCode(), err
 }

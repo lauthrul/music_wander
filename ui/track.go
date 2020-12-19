@@ -11,7 +11,7 @@ import (
 
 type TrackModel struct {
 	walk.ListModelBase
-	items []model.MusicInfo
+	items []*model.MusicInfo
 }
 
 func (m *TrackModel) ItemCount() int {
