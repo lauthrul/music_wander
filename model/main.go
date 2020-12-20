@@ -43,15 +43,23 @@ type LinkInfo struct {
 	} `json:"data"`
 }
 
-type PlayStatus uint
+type PlayAction uint
 
 const (
-	PlayStatusPaused   PlayStatus = 0
-	PlayStatusPlaying             = 1
-	PlayStatusFinished            = 2
+	PlayActionStop  PlayAction = 0
+	PlayActionPlay             = 1
+	PlayActionPause            = 2
+	PlayActionNext             = 3
 )
 
+type MusicController struct {
+	Streamer     beep.StreamSeekCloser
+	Format       beep.Format
+	Ctrl         *beep.Ctrl
+}
+
 type MusicInfo struct {
+	MusicController
 	ID            string `json:"id"`
 	Name          string `json:"name"`
 	ArtistsName   string `json:"artists_name"`
@@ -59,8 +67,6 @@ type MusicInfo struct {
 	MusicPic      string `json:"music_pic"`
 	MusicLocal    string `json:"music_local"`
 	MusicPicLocal string `json:"music_pic_local"`
-	Ctrl          *beep.Ctrl
-	PlayStatus    chan PlayStatus
 }
 
 type CacheType uint

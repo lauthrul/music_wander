@@ -26,15 +26,14 @@ func WalkPlaylist(playlist *PlaylistResp) []*MusicInfo {
 	var musics []*MusicInfo
 	for _, track := range playlist.Result.Tracks {
 		music := &MusicInfo{
-			ID:            fmt.Sprintf("%d", track.ID),
-			Name:          track.Name,
-			ArtistsName:   "",
-			MusicUrl:      "",
-			MusicPic:      track.Album.PicUrl,
-			MusicLocal:    "",
-			MusicPicLocal: "",
-			Ctrl:          nil,
-			PlayStatus:    make(chan PlayStatus),
+			MusicController: MusicController{},
+			ID:              fmt.Sprintf("%d", track.ID),
+			Name:            track.Name,
+			ArtistsName:     "",
+			MusicUrl:        "",
+			MusicPic:        track.Album.PicUrl,
+			MusicLocal:      "",
+			MusicPicLocal:   "",
 		}
 		for _, artist := range track.Artists {
 			music.ArtistsName += artist.Name + ","

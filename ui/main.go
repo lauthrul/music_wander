@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/faiface/beep/speaker"
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 	"time"
@@ -32,9 +33,47 @@ type MyMainWindow struct {
 	// data
 	playList  *PlaylistModel
 	musicList *TrackModel
+
+	// manager
+	pm *model.PlayerManager
+	ch chan model.PlayAction
 }
 
-func (mw *MyMainWindow) updateMusicUI(music *model.MusicInfo) {
+func (mw *MyMainWindow) init() {
+	go func() {
+		for {
+			select {
+			case status := <-mw.ch:
+				fmt.Println(mw.pm.CurrentMusic, status)
+				switch status {
+				case model.PlayActionStop:
+					// DO NOTHING
+				case model.PlayActionPlay, model.PlayActionPause:
+					text := TextPause
+					if status == model.PlayActionPause {
+						text = TextPlay
+					}
+					mw.btnPlay.SetText(text)
+					mw.lblCurrentPlaying.SetText(fmt.Sprintf("当前播放： <a>%s</a>", mw.lblName.Text()))
+				case model.PlayActionNext:
+					mw.onPlayNext()
+				}
+			case <-time.After(time.Second):
+				if mw.pm.CurrentMusic != nil {
+					if mw.pm.CurrentMusic.Streamer != nil {
+						speaker.Lock()
+						if !mw.pm.CurrentMusic.Ctrl.Paused {
+							fmt.Println(mw.pm.CurrentMusic, mw.pm.CurrentMusic.Format.SampleRate.D(mw.pm.CurrentMusic.Streamer.Position()).Round(time.Second))
+						}
+						speaker.Unlock()
+					}
+				}
+			}
+		}
+	}()
+}
+
+func (mw *MyMainWindow) updateControlPanel(music *model.MusicInfo) {
 	img, err := walk.NewImageFromFile(music.MusicPicLocal)
 	if err != nil {
 		fmt.Println("load music pic err:", err)
@@ -42,19 +81,24 @@ func (mw *MyMainWindow) updateMusicUI(music *model.MusicInfo) {
 	}
 	mw.imgCover.SetImage(img)
 	mw.lblName.SetText(music.Name + " - " + music.ArtistsName)
-	current := model.CurrentMusic()
-	if current.MusicLocal != "" && current.MusicLocal == music.MusicLocal {
-		mw.btnPlay.SetText(TextPause)
-	} else {
-		mw.btnPlay.SetText(TextPlay)
+
+	if mw.pm.CurrentMusic != nil {
+		if mw.pm.CurrentMusic.MusicLocal == music.MusicLocal {
+			mw.btnPlay.SetText(TextPause)
+		} else {
+			mw.btnPlay.SetText(TextPlay)
+		}
 	}
 }
 
 func (mw *MyMainWindow) onGotoTackList(link *walk.LinkLabelLink) {
-	current := model.CurrentMusic()
+	if mw.pm.CurrentMusic == nil {
+		return
+	}
+
 	idx := -1
 	for i, m := range mw.musicList.items {
-		if m.ID == current.ID {
+		if m.ID == mw.pm.CurrentMusic.ID {
 			idx = i
 			break
 		}
@@ -107,7 +151,7 @@ func (mw *MyMainWindow) onTrackListChanged() {
 				return
 			}
 		}
-		mw.updateMusicUI(music)
+		mw.updateControlPanel(music)
 	})
 }
 
@@ -146,25 +190,7 @@ func (mw *MyMainWindow) play(idx int) {
 		}
 	}
 	// play music
-	go func() {
-		model.Play(music)
-		text := TextPause
-		if music.Ctrl.Paused {
-			text = TextPlay
-		}
-		mw.btnPlay.SetText(text)
-		//for {
-			select {
-			case status := <-music.PlayStatus:
-				fmt.Println(status)
-				mw.btnPlay.SetText(TextPlay)
-				mw.onPlayNext()
-				return
-			//default:
-			//	fmt.Println("default")
-			}
-		//}
-	}()
+	mw.pm.Play(music)
 }
 
 func (mw *MyMainWindow) onPlayPrev() {
@@ -181,7 +207,6 @@ func (mw *MyMainWindow) onPlayPrev() {
 func (mw *MyMainWindow) onPlay() {
 	mw.Synchronize(func() {
 		mw.play(mw.lbTrackList.CurrentIndex())
-		mw.lblCurrentPlaying.SetText(fmt.Sprintf("当前播放： <a>%s</a>", mw.lblName.Text()))
 	})
 }
 
@@ -199,12 +224,16 @@ func (mw *MyMainWindow) onPlayNext() {
 
 func Run() {
 
+	walk.Resources.SetRootDirPath("cache")
+
 	mw := &MyMainWindow{
 		playList: NewPlaylist(),
+		ch:       make(chan model.PlayAction),
 	}
 	mw.musicList = NewTrackList(mw)
+	mw.pm = model.NewPlayerManager(mw.ch)
 
-	walk.Resources.SetRootDirPath("cache")
+	mw.init()
 
 	MainWindow{
 		AssignTo: &mw.MainWindow,

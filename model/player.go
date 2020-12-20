@@ -9,57 +9,80 @@ import (
 	"time"
 )
 
-var (
-	streamer     beep.StreamSeekCloser
-	currentMusic MusicInfo
-)
-
-func CurrentMusic() MusicInfo {
-	return currentMusic
+type PlayerManager struct {
+	CurrentMusic   *MusicInfo
+	ctrlCh         chan *MusicInfo // 内部播放控制chan
+	cbPlayActionCh chan PlayAction // 播放控制回调chan
 }
 
-func Play(music *MusicInfo) {
-	if currentMusic.MusicLocal != music.MusicLocal {
-		if currentMusic.MusicLocal != "" {
-			//if music.Ctrl != nil {
-			//	music.Ctrl.Streamer = nil
-			//	music.Ctrl = nil
-			//}
-			streamer.Close()
-			music.Ctrl = nil
+func NewPlayerManager(ch chan PlayAction) *PlayerManager {
+	pm := &PlayerManager{ctrlCh: make(chan *MusicInfo), cbPlayActionCh: ch}
+	pm.init()
+	return pm
+}
+
+func (pm *PlayerManager) init() {
+	go func() {
+		for {
+			select {
+			case music := <-pm.ctrlCh:
+				pm.play(music)
+			}
 		}
-		currentMusic = *music
+	}()
+}
+
+func (pm *PlayerManager) play(music *MusicInfo) {
+	if pm.CurrentMusic != music {
+		if pm.CurrentMusic != nil && pm.CurrentMusic.Streamer != nil {
+			pm.CurrentMusic.Streamer.Close()
+			pm.CurrentMusic.Ctrl.Streamer = nil
+			pm.CurrentMusic.Ctrl = nil
+			pm.CurrentMusic.Streamer = nil
+			pm.CurrentMusic = nil
+			pm.cbPlayActionCh <- PlayActionStop
+		}
+		pm.CurrentMusic = music
 	}
-	if music.Ctrl == nil {
+
+	if music.Streamer == nil {
 		f, err := os.Open(music.MusicLocal)
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		s, format, err := mp3.Decode(f)
+		streamer, format, err := mp3.Decode(f)
 		if err != nil {
 			fmt.Println(err)
 		}
-		streamer = s
 
 		speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 
-		ctrl := &beep.Ctrl{Streamer: s, Paused: false}
+		ctrl := &beep.Ctrl{Streamer: streamer, Paused: false}
 		cb := beep.Seq(ctrl, beep.Callback(func() {
-			music.PlayStatus <- PlayStatusFinished
+			//pm.cbPlayActionCh <- PlayActionNext
 		}))
 		speaker.Play(cb)
 
+		music.Streamer = streamer
+		music.Format = format
 		music.Ctrl = ctrl
+
+		pm.cbPlayActionCh <- PlayActionPlay
+
 	} else {
 		speaker.Lock()
 		music.Ctrl.Paused = !music.Ctrl.Paused
 		speaker.Unlock()
 
-		status := PlayStatus(PlayStatusPlaying)
+		action := PlayAction(PlayActionPlay)
 		if music.Ctrl.Paused {
-			status = PlayStatusPaused
+			action = PlayActionPause
 		}
-		music.PlayStatus <- status
+		pm.cbPlayActionCh <- action
 	}
+}
+
+func (pm *PlayerManager) Play(music *MusicInfo) {
+	pm.ctrlCh <- music
 }
