@@ -10,7 +10,7 @@ import (
 )
 
 type PlayerManager struct {
-	CurrentMusic   *MusicInfo
+	currentMusic   *MusicInfo
 	ctrlCh         chan *MusicInfo // 内部播放控制chan
 	cbPlayActionCh chan PlayAction // 播放控制回调chan
 }
@@ -33,16 +33,16 @@ func (pm *PlayerManager) init() {
 }
 
 func (pm *PlayerManager) play(music *MusicInfo) {
-	if pm.CurrentMusic != music {
-		if pm.CurrentMusic != nil && pm.CurrentMusic.Streamer != nil {
-			pm.CurrentMusic.Streamer.Close()
-			pm.CurrentMusic.Ctrl.Streamer = nil
-			pm.CurrentMusic.Ctrl = nil
-			pm.CurrentMusic.Streamer = nil
-			pm.CurrentMusic = nil
+	if pm.currentMusic != music {
+		if pm.currentMusic != nil && pm.currentMusic.Streamer != nil {
+			pm.currentMusic.Streamer.Close()
+			pm.currentMusic.Ctrl.Streamer = nil
+			pm.currentMusic.Ctrl = nil
+			pm.currentMusic.Streamer = nil
+			pm.currentMusic = nil
 			pm.cbPlayActionCh <- PlayActionStop
 		}
-		pm.CurrentMusic = music
+		pm.currentMusic = music
 	}
 
 	if music.Streamer == nil {
@@ -83,6 +83,25 @@ func (pm *PlayerManager) play(music *MusicInfo) {
 	}
 }
 
+func (pm *PlayerManager) duration(pos int) time.Duration {
+	speaker.Lock()
+	d := pm.currentMusic.Format.SampleRate.D(pos).Round(time.Second)
+	speaker.Unlock()
+	return d
+}
+
+func (pm *PlayerManager) Current() *MusicInfo {
+	return pm.currentMusic
+}
+
 func (pm *PlayerManager) Play(music *MusicInfo) {
 	pm.ctrlCh <- music
+}
+
+func (pm *PlayerManager) Pos() time.Duration {
+	return pm.duration(pm.currentMusic.Streamer.Position())
+}
+
+func (pm *PlayerManager) Len() time.Duration {
+	return pm.duration(pm.currentMusic.Streamer.Len())
 }

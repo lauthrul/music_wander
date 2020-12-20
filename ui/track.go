@@ -19,7 +19,7 @@ func (m *TrackModel) ItemCount() int {
 }
 
 func (m *TrackModel) Value(index int) interface{} {
-	return fmt.Sprintf("%s - %s", m.items[index].Name, m.items[index].ArtistsName)
+	return fmt.Sprintf("[%03d] %s - %s", index+1, m.items[index].Name, m.items[index].ArtistsName)
 }
 
 func NewTrackList(mw *MyMainWindow) *TrackModel {
