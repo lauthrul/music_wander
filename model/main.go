@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"wander/log"
 )
 
 /*
@@ -137,7 +138,6 @@ func RequestNext() (*MusicInfo, error) {
 
 	// get random randomInfo info
 	data, _, err := HttpDoTimeout(nil, "GET", RandomUrl, nil, 30*time.Second)
-	//fmt.Println(code, err, string(data))
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,6 @@ func RequestNext() (*MusicInfo, error) {
 
 	// download music
 	data, _, err = HttpDoTimeout(nil, "GET", fmt.Sprintf(LinkUrl, musicInfo.ID), nil, 30*time.Second)
-	//fmt.Println(code, err, string(data))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +186,7 @@ func RequestNext() (*MusicInfo, error) {
 		return nil, err
 	}
 
-	fmt.Printf("%+v, err: %v\n", musicInfo, err)
+	log.DebugF("%+v, err: %v\n", musicInfo, err)
 
 	return musicInfo, err
 }

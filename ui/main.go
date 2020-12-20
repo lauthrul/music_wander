@@ -6,6 +6,7 @@ import (
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 	"time"
+	"wander/log"
 	"wander/model"
 )
 
@@ -44,7 +45,7 @@ func (mw *MyMainWindow) init() {
 		for {
 			select {
 			case status := <-mw.ch:
-				fmt.Println(mw.pm.Current(), status)
+				log.Debug(mw.pm.Current(), status)
 				switch status {
 				case model.PlayActionStop:
 					// DO NOTHING
@@ -64,7 +65,7 @@ func (mw *MyMainWindow) init() {
 						pos := mw.pm.Pos()
 						duration := mw.pm.Len()
 						text := fmt.Sprintf(textCurrentPlaying, name+fmt.Sprintf(" [%v/%v]", pos, duration))
-						fmt.Println(text)
+						log.Debug(text)
 						mw.lblCurrentPlaying.SetText(text)
 						if pos >= duration {
 							mw.onPlayNext()
@@ -79,7 +80,7 @@ func (mw *MyMainWindow) init() {
 func (mw *MyMainWindow) updateControlPanel(music *model.MusicInfo) {
 	img, err := walk.NewImageFromFile(music.MusicPicLocal)
 	if err != nil {
-		fmt.Println("load music pic err:", err)
+		log.ErrorF("load music pic err:", err)
 		return
 	}
 	mw.imgCover.SetImage(img)
@@ -160,7 +161,7 @@ func (mw *MyMainWindow) onTrackListChanged() {
 
 func (mw *MyMainWindow) play(idx int) {
 	if idx < 0 || idx > len(mw.musicList.items) {
-		fmt.Println("playlist idx err:", idx)
+		log.ErrorF("playlist idx err:", idx)
 		return
 	}
 	music := mw.musicList.items[idx]
@@ -179,10 +180,10 @@ func (mw *MyMainWindow) play(idx int) {
 			var linkInfo model.LinkInfo
 			err = json.Unmarshal(data, &linkInfo)
 			if err != nil {
+				log.Error(err)
 				return
 			}
 			if linkInfo.Code != 200 {
-				fmt.Println(err)
 				return
 			}
 			music.MusicUrl = linkInfo.Data.Url

@@ -1,9 +1,9 @@
 package model
 
 import (
-	"fmt"
 	"github.com/valyala/fasthttp"
 	"time"
+	"wander/log"
 )
 
 var fc = &fasthttp.Client{}
@@ -35,7 +35,7 @@ func HttpDoTimeout(body []byte, method string, uri string, headers map[string]st
 	// time.Second * 30
 	err := fc.DoTimeout(req, resp, timeout)
 
-	fmt.Printf("%s -> [%d] %v\n", uri, resp.StatusCode(), err)
+	log.DebugF("%s -> [%d] %v\n", uri, resp.StatusCode(), err)
 
 	return resp.Body(), resp.StatusCode(), err
 }

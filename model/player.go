@@ -1,12 +1,12 @@
 package model
 
 import (
-	"fmt"
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 	"os"
 	"time"
+	"wander/log"
 )
 
 type PlayerManager struct {
@@ -48,12 +48,12 @@ func (pm *PlayerManager) play(music *MusicInfo) {
 	if music.Streamer == nil {
 		f, err := os.Open(music.MusicLocal)
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 		}
 
 		streamer, format, err := mp3.Decode(f)
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 		}
 
 		speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
