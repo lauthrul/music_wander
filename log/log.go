@@ -33,12 +33,12 @@ func Init(filePath string) {
 
 func write(prefix string, v ...interface{}) {
 	logger.SetPrefix(prefix)
-	logger.Println(v...)
+	logger.Output(3, fmt.Sprintln(v...))
 }
 
-func writeF(prefix, fmt string, v ...interface{}) {
+func writeF(prefix, format string, v ...interface{}) {
 	logger.SetPrefix(prefix)
-	logger.Printf(fmt, v...)
+	logger.Output(3, fmt.Sprintf(format, v...))
 }
 
 func Debug(v ...interface{}) {
