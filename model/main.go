@@ -44,19 +44,10 @@ type LinkInfo struct {
 	} `json:"data"`
 }
 
-type PlayAction uint
-
-const (
-	PlayActionStop  PlayAction = 0
-	PlayActionPlay             = 1
-	PlayActionPause            = 2
-	PlayActionNext             = 3
-)
-
 type MusicController struct {
-	Streamer     beep.StreamSeekCloser
-	Format       beep.Format
-	Ctrl         *beep.Ctrl
+	Streamer beep.StreamSeekCloser
+	Format   beep.Format
+	Ctrl     *beep.Ctrl
 }
 
 type MusicInfo struct {

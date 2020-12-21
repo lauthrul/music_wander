@@ -9,14 +9,33 @@ import (
 	"wander/log"
 )
 
+type Action uint
+
+const (
+	ActionStop  Action = 0
+	ActionPlay         = 1
+	ActionPause        = 2
+	ActionNext         = 3
+)
+
+type PlayAction struct {
+	MusicInfo
+	Action
+}
+
+type PlayCtrl struct {
+	*MusicInfo
+	pos   int
+}
+
 type PlayerManager struct {
 	currentMusic   *MusicInfo
-	ctrlCh         chan *MusicInfo // 内部播放控制chan
+	ctrlCh         chan PlayCtrl   // 内部播放控制chan
 	cbPlayActionCh chan PlayAction // 播放控制回调chan
 }
 
 func NewPlayerManager(ch chan PlayAction) *PlayerManager {
-	pm := &PlayerManager{ctrlCh: make(chan *MusicInfo), cbPlayActionCh: ch}
+	pm := &PlayerManager{ctrlCh: make(chan PlayCtrl), cbPlayActionCh: ch}
 	pm.init()
 	return pm
 }
@@ -39,8 +58,8 @@ func (pm *PlayerManager) play(music *MusicInfo) {
 			pm.currentMusic.Ctrl.Streamer = nil
 			pm.currentMusic.Ctrl = nil
 			pm.currentMusic.Streamer = nil
+			pm.cbPlayActionCh <- PlayAction{MusicInfo: *pm.currentMusic, Action: ActionStop}
 			pm.currentMusic = nil
-			pm.cbPlayActionCh <- PlayActionStop
 		}
 		pm.currentMusic = music
 	}
@@ -60,7 +79,7 @@ func (pm *PlayerManager) play(music *MusicInfo) {
 
 		ctrl := &beep.Ctrl{Streamer: streamer, Paused: false}
 		cb := beep.Seq(ctrl, beep.Callback(func() {
-			//pm.cbPlayActionCh <- PlayActionNext
+			//pm.cbPlayActionCh <- ActionNext
 		}))
 		speaker.Play(cb)
 
@@ -68,18 +87,18 @@ func (pm *PlayerManager) play(music *MusicInfo) {
 		music.Format = format
 		music.Ctrl = ctrl
 
-		pm.cbPlayActionCh <- PlayActionPlay
+		pm.cbPlayActionCh <- PlayAction{MusicInfo: *music, Action: ActionPlay}
 
 	} else {
 		speaker.Lock()
 		music.Ctrl.Paused = !music.Ctrl.Paused
 		speaker.Unlock()
 
-		action := PlayAction(PlayActionPlay)
+		action := Action(ActionPlay)
 		if music.Ctrl.Paused {
-			action = PlayActionPause
+			action = ActionPause
 		}
-		pm.cbPlayActionCh <- action
+		pm.cbPlayActionCh <- PlayAction{MusicInfo: *music, Action: action}
 	}
 }
 
@@ -95,6 +114,10 @@ func (pm *PlayerManager) Current() *MusicInfo {
 }
 
 func (pm *PlayerManager) Play(music *MusicInfo) {
+	pm.ctrlCh <- music
+}
+
+func (pm *PlayerManager) PlayPos() {
 	pm.ctrlCh <- music
 }
 

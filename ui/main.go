@@ -27,6 +27,7 @@ type MyMainWindow struct {
 	lblCurrentPlaying *walk.LinkLabel
 	imgCover          *walk.ImageView
 	lblName           *walk.Label
+	slv               *walk.Slider
 	btnPrev           *walk.PushButton
 	btnPlay           *walk.PushButton
 	btnNext           *walk.PushButton
@@ -44,18 +45,18 @@ func (mw *MyMainWindow) init() {
 	go func() {
 		for {
 			select {
-			case status := <-mw.ch:
-				log.Debug(mw.pm.Current(), status)
-				switch status {
-				case model.PlayActionStop:
+			case action := <-mw.ch:
+				log.Debug(action)
+				switch action.Action {
+				case model.ActionStop:
 					// DO NOTHING
-				case model.PlayActionPlay, model.PlayActionPause:
+				case model.ActionPlay, model.ActionPause:
 					text := textPause
-					if status == model.PlayActionPause {
+					if action.Action == model.ActionPause {
 						text = textPlay
 					}
 					mw.btnPlay.SetText(text)
-				case model.PlayActionNext:
+				case model.ActionNext:
 					mw.onPlayNext()
 				}
 			case <-time.After(time.Second):
@@ -64,6 +65,8 @@ func (mw *MyMainWindow) init() {
 						name := fmt.Sprintf("%s - %s", mw.pm.Current().Name, mw.pm.Current().ArtistsName)
 						pos := mw.pm.Pos()
 						duration := mw.pm.Len()
+						mw.slv.SetRange(0, int(duration.Seconds()))
+						mw.slv.SetValue(int(pos.Seconds()))
 						text := fmt.Sprintf(textCurrentPlaying, name+fmt.Sprintf(" [%v/%v]", pos, duration))
 						log.Debug(text)
 						mw.lblCurrentPlaying.SetText(text)
@@ -226,6 +229,10 @@ func (mw *MyMainWindow) onPlayNext() {
 	})
 }
 
+func (mw *MyMainWindow) onPlayPos() {
+	mw.slv.Value()
+}
+
 func Run() {
 
 	walk.Resources.SetRootDirPath("cache")
@@ -246,6 +253,20 @@ func Run() {
 		MaxSize:  Size{Width: 500, Height: 300},
 		Size:     Size{Width: 500, Height: 300},
 		Layout:   HBox{},
+		//MenuItems: []MenuItem{
+		//	Action{
+		//		Shortcut:    Shortcut{walk.ModControl|walk.ModAlt, walk.KeyLeft},
+		//		OnTriggered: mw.onPlayPrev,
+		//	},
+		//	Action{
+		//		Shortcut:    Shortcut{walk.ModControl|walk.ModAlt, walk.KeyReturn},
+		//		OnTriggered: mw.onPlay,
+		//	},
+		//	Action{
+		//		Shortcut:    Shortcut{walk.ModControl|walk.ModAlt, walk.KeyRight},
+		//		OnTriggered: mw.onPlayNext,
+		//	},
+		//},
 		Children: []Widget{
 			HSplitter{
 				//MinSize: Size{Width: 300},
@@ -292,6 +313,11 @@ func Run() {
 						Alignment: AlignHCenterVCenter,
 						//Font:      Font{Family: "微软雅黑", Bold: true},
 						Text: "音乐的力量",
+					},
+					Slider{
+						AssignTo:       &mw.slv,
+						Orientation:    Horizontal,
+						OnValueChanged: mw.onPlayPos,
 					},
 					Composite{
 						MaxSize: Size{0, 32},
