@@ -22,23 +22,24 @@ type PlaylistResp struct {
 	} `json:"result"`
 }
 
-func WalkPlaylist(playlist *PlaylistResp) []*MusicInfo {
-	var musics []*MusicInfo
+func WalkPlaylist(playlist *PlaylistResp) []*Music {
+	var musics []*Music
 	for _, track := range playlist.Result.Tracks {
-		music := &MusicInfo{
-			MusicController: MusicController{},
-			ID:              fmt.Sprintf("%d", track.ID),
-			Name:            track.Name,
-			ArtistsName:     "",
-			MusicUrl:        "",
-			MusicPic:        track.Album.PicUrl,
-			MusicLocal:      "",
-			MusicPicLocal:   "",
+		music := &Music{
+			Info: MusicInfo{
+				ID:            fmt.Sprintf("%d", track.ID),
+				Name:          track.Name,
+				ArtistsName:   "",
+				MusicUrl:      "",
+				MusicPic:      track.Album.PicUrl,
+				MusicLocal:    "",
+				MusicPicLocal: "",
+			},
 		}
 		for _, artist := range track.Artists {
-			music.ArtistsName += artist.Name + ","
+			music.Info.ArtistsName += artist.Name + ","
 		}
-		music.ArtistsName = strings.TrimRight(music.ArtistsName, ",")
+		music.Info.ArtistsName = strings.TrimRight(music.Info.ArtistsName, ",")
 		musics = append(musics, music)
 	}
 	return musics

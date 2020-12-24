@@ -24,18 +24,18 @@ type MyMainWindow struct {
 
 	// ui
 	lbPlayList        *walk.ListBox
-	lbTrackList       *walk.ListBox
+	lbMusicList       *walk.ListBox
 	lblCurrentPlaying *walk.LinkLabel
 	imgCover          *walk.ImageView
 	lblName           *walk.Label
-	slv               *walk.Slider
+	sl                *walk.Slider
 	btnPrev           *walk.PushButton
 	btnPlay           *walk.PushButton
 	btnNext           *walk.PushButton
 
 	// data
 	playList  *PlaylistModel
-	musicList *TrackModel
+	musicList *MusicListModel
 
 	// manager
 	pm         *model.PlayerManager
@@ -65,18 +65,18 @@ func (mw *MyMainWindow) init() {
 					continue
 				}
 
-				current := mw.pm.Current()
-				name := fmt.Sprintf("%s - %s", current.Name, current.ArtistsName)
+				info := mw.pm.Info()
+				name := fmt.Sprintf("%s - %s", info.Name, info.ArtistsName)
 				pos := mw.pm.Pos()
-				duration := mw.pm.Len()
-				text := fmt.Sprintf(textCurrentPlaying, name+fmt.Sprintf(" [%v/%v]", pos, duration))
+				length := mw.pm.Len()
+				text := fmt.Sprintf(textCurrentPlaying, name+fmt.Sprintf(" [%v/%v]", mw.pm.Duration(pos), mw.pm.Duration(length)))
 				log.Debug(text)
 				mw.lblCurrentPlaying.SetText(text)
 
-				mw.slv.SetRange(0, current.Streamer.Len())
-				mw.slv.SendMessage(win.TBM_SETPOS, 1, uintptr(current.Streamer.Position()))
+				mw.sl.SetRange(0, mw.pm.Len())
+				mw.sl.SendMessage(win.TBM_SETPOS, 1, uintptr(mw.pm.Pos()))
 
-				if pos >= duration {
+				if pos >= length {
 					mw.onPlayNext()
 				}
 			}
@@ -84,37 +84,31 @@ func (mw *MyMainWindow) init() {
 	}()
 }
 
-func (mw *MyMainWindow) updateControlPanel(music *model.MusicInfo) {
-	img, err := walk.NewImageFromFile(music.MusicPicLocal)
+func (mw *MyMainWindow) updateControlPanel(music *model.Music) {
+	img, err := walk.NewImageFromFile(music.Info.MusicPicLocal)
 	if err != nil {
 		log.ErrorF("load music pic err:", err)
 		return
 	}
 	mw.imgCover.SetImage(img)
-	mw.lblName.SetText(music.Name + " - " + music.ArtistsName)
+	mw.lblName.SetText(music.Info.Name + " - " + music.Info.ArtistsName)
 
-	if mw.pm.Current() != nil {
-		if mw.pm.Current().MusicLocal == music.MusicLocal {
-			mw.btnPlay.SetText(textPause)
-		} else {
-			mw.btnPlay.SetText(textPlay)
-		}
+	if mw.pm.IsPlaying() && mw.pm.Info().MusicLocal == music.Info.MusicLocal {
+		mw.btnPlay.SetText(textPause)
+	} else {
+		mw.btnPlay.SetText(textPlay)
 	}
 }
 
 func (mw *MyMainWindow) onGotoTackList(link *walk.LinkLabelLink) {
-	if mw.pm.Current() == nil {
-		return
-	}
-
 	idx := -1
 	for i, m := range mw.musicList.items {
-		if m.ID == mw.pm.Current().ID {
+		if m.Info.ID == mw.pm.Info().ID {
 			idx = i
 			break
 		}
 	}
-	mw.lbTrackList.SetCurrentIndex(idx)
+	mw.lbMusicList.SetCurrentIndex(idx)
 }
 
 func (mw *MyMainWindow) onPlaylistChanged() {
@@ -147,18 +141,18 @@ func (mw *MyMainWindow) onPlaylistChanged() {
 func (mw *MyMainWindow) onTrackListChanged() {
 	mw.Synchronize(func() {
 		var err error
-		idx := mw.lbTrackList.CurrentIndex()
+		idx := mw.lbMusicList.CurrentIndex()
 		if idx < 0 || idx >= len(mw.musicList.items) {
 			return
 		}
 		music := mw.musicList.items[idx]
-		fileName := fmt.Sprintf("%s-%s", music.Name, music.ArtistsName)
+		fileName := fmt.Sprintf("%s-%s", music.Info.Name, music.Info.ArtistsName)
 		res, ok := model.CheckCaches("cache", fileName, model.CachePic)
 		if ok {
-			music.MusicPicLocal = res[model.CachePic]
+			music.Info.MusicPicLocal = res[model.CachePic]
 		} else {
 			// download music pic
-			music.MusicPicLocal, err = model.Download(music.MusicPic, "/", fileName)
+			music.Info.MusicPicLocal, err = model.Download(music.Info.MusicPic, "/", fileName)
 			if err != nil {
 				return
 			}
@@ -173,14 +167,14 @@ func (mw *MyMainWindow) play(idx int) {
 		return
 	}
 	music := mw.musicList.items[idx]
-	if music.MusicLocal == "" {
-		fileName := fmt.Sprintf("%s-%s", music.Name, music.ArtistsName)
+	if music.Info.MusicLocal == "" {
+		fileName := fmt.Sprintf("%s-%s", music.Info.Name, music.Info.ArtistsName)
 		res, ok := model.CheckCaches("cache", fileName, model.CacheMusic)
 		if ok {
-			music.MusicLocal = res[model.CacheMusic]
+			music.Info.MusicLocal = res[model.CacheMusic]
 		} else {
 			// download music
-			link := fmt.Sprintf(model.LinkUrl, music.ID)
+			link := fmt.Sprintf(model.LinkUrl, music.Info.ID)
 			data, _, err := model.HttpDoTimeout(nil, "GET", link, nil, 2*time.Minute)
 			if err != nil {
 				return
@@ -195,8 +189,8 @@ func (mw *MyMainWindow) play(idx int) {
 				log.Error(string(data))
 				return
 			}
-			music.MusicUrl = linkInfo.Data.Url
-			music.MusicLocal, err = model.Download(music.MusicUrl, "/", fileName)
+			music.Info.MusicUrl = linkInfo.Data.Url
+			music.Info.MusicLocal, err = model.Download(music.Info.MusicUrl, "/", fileName)
 			if err != nil {
 				return
 			}
@@ -204,7 +198,7 @@ func (mw *MyMainWindow) play(idx int) {
 	}
 	// play music
 	action := model.Action(model.ActionPlay)
-	if mw.pm.IsPlaying() {
+	if music.IsPlaying() {
 		action = model.ActionPause
 	}
 	mw.pm.Play(music, action, -1)
@@ -213,36 +207,36 @@ func (mw *MyMainWindow) play(idx int) {
 func (mw *MyMainWindow) onPlayPrev() {
 	mw.Synchronize(func() {
 		mw.pm.Stop()
-		idx := mw.lbTrackList.CurrentIndex() - 1
+		idx := mw.lbMusicList.CurrentIndex() - 1
 		if idx < 0 {
 			idx = len(mw.musicList.items) - 1
 		}
-		mw.lbTrackList.SetCurrentIndex(idx)
+		mw.lbMusicList.SetCurrentIndex(idx)
 		mw.play(idx)
 	})
 }
 
 func (mw *MyMainWindow) onPlay() {
 	mw.Synchronize(func() {
-		mw.play(mw.lbTrackList.CurrentIndex())
+		mw.play(mw.lbMusicList.CurrentIndex())
 	})
 }
 
 func (mw *MyMainWindow) onPlayNext() {
 	mw.Synchronize(func() {
 		mw.pm.Stop()
-		idx := mw.lbTrackList.CurrentIndex() + 1
+		idx := mw.lbMusicList.CurrentIndex() + 1
 		max := len(mw.musicList.items) - 1
 		if idx > max {
 			idx = 0
 		}
-		mw.lbTrackList.SetCurrentIndex(idx)
+		mw.lbMusicList.SetCurrentIndex(idx)
 		mw.play(idx)
 	})
 }
 
 func (mw *MyMainWindow) onPlayPos() {
-	mw.pm.Play(mw.pm.Current(), model.ActionPlay, mw.slv.Value())
+	mw.pm.Play(nil, model.ActionPlay, mw.sl.Value())
 }
 
 func Run() {
@@ -295,7 +289,7 @@ func Run() {
 					},
 					// 歌单
 					ListBox{
-						AssignTo: &mw.lbTrackList,
+						AssignTo: &mw.lbMusicList,
 						MinSize:  Size{Width: 200, Height: 32},
 						//MaxSize:  Size{Width: 200, Height: 32},
 						Model:                 mw.musicList,
@@ -327,7 +321,7 @@ func Run() {
 						Text: "音乐的力量",
 					},
 					Slider{
-						AssignTo:       &mw.slv,
+						AssignTo:       &mw.sl,
 						Orientation:    Horizontal,
 						OnValueChanged: mw.onPlayPos,
 					},
