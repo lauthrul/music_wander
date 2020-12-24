@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
+	"github.com/lxn/win"
 	"time"
 	"wander/log"
 	"wander/model"
@@ -37,22 +38,22 @@ type MyMainWindow struct {
 	musicList *TrackModel
 
 	// manager
-	pm *model.PlayerManager
-	ch chan model.PlayAction
+	pm         *model.PlayerManager
+	chPlayback chan model.PlayCallback
 }
 
 func (mw *MyMainWindow) init() {
 	go func() {
 		for {
 			select {
-			case action := <-mw.ch:
-				log.Debug(action)
-				switch action.Action {
+			case playback := <-mw.chPlayback:
+				log.Debug(playback)
+				switch playback.Action {
 				case model.ActionStop:
 					// DO NOTHING
 				case model.ActionPlay, model.ActionPause:
 					text := textPause
-					if action.Action == model.ActionPause {
+					if playback.Action == model.ActionPause {
 						text = textPlay
 					}
 					mw.btnPlay.SetText(text)
@@ -60,20 +61,23 @@ func (mw *MyMainWindow) init() {
 					mw.onPlayNext()
 				}
 			case <-time.After(time.Second):
-				if mw.pm.Current() != nil {
-					if mw.pm.Current().Streamer != nil {
-						name := fmt.Sprintf("%s - %s", mw.pm.Current().Name, mw.pm.Current().ArtistsName)
-						pos := mw.pm.Pos()
-						duration := mw.pm.Len()
-						mw.slv.SetRange(0, int(duration.Seconds()))
-						mw.slv.SetValue(int(pos.Seconds()))
-						text := fmt.Sprintf(textCurrentPlaying, name+fmt.Sprintf(" [%v/%v]", pos, duration))
-						log.Debug(text)
-						mw.lblCurrentPlaying.SetText(text)
-						if pos >= duration {
-							mw.onPlayNext()
-						}
-					}
+				if !mw.pm.IsPlaying() {
+					continue
+				}
+
+				current := mw.pm.Current()
+				name := fmt.Sprintf("%s - %s", current.Name, current.ArtistsName)
+				pos := mw.pm.Pos()
+				duration := mw.pm.Len()
+				text := fmt.Sprintf(textCurrentPlaying, name+fmt.Sprintf(" [%v/%v]", pos, duration))
+				log.Debug(text)
+				mw.lblCurrentPlaying.SetText(text)
+
+				mw.slv.SetRange(0, current.Streamer.Len())
+				mw.slv.SendMessage(win.TBM_SETPOS, 1, uintptr(current.Streamer.Position()))
+
+				if pos >= duration {
+					mw.onPlayNext()
 				}
 			}
 		}
@@ -131,6 +135,7 @@ func (mw *MyMainWindow) onPlaylistChanged() {
 			return
 		}
 		if playlist.Code != 200 {
+			log.Error(string(data))
 			return
 		}
 
@@ -187,6 +192,7 @@ func (mw *MyMainWindow) play(idx int) {
 				return
 			}
 			if linkInfo.Code != 200 {
+				log.Error(string(data))
 				return
 			}
 			music.MusicUrl = linkInfo.Data.Url
@@ -197,11 +203,16 @@ func (mw *MyMainWindow) play(idx int) {
 		}
 	}
 	// play music
-	mw.pm.Play(music)
+	action := model.Action(model.ActionPlay)
+	if mw.pm.IsPlaying() {
+		action = model.ActionPause
+	}
+	mw.pm.Play(music, action, -1)
 }
 
 func (mw *MyMainWindow) onPlayPrev() {
 	mw.Synchronize(func() {
+		mw.pm.Stop()
 		idx := mw.lbTrackList.CurrentIndex() - 1
 		if idx < 0 {
 			idx = len(mw.musicList.items) - 1
@@ -219,6 +230,7 @@ func (mw *MyMainWindow) onPlay() {
 
 func (mw *MyMainWindow) onPlayNext() {
 	mw.Synchronize(func() {
+		mw.pm.Stop()
 		idx := mw.lbTrackList.CurrentIndex() + 1
 		max := len(mw.musicList.items) - 1
 		if idx > max {
@@ -230,7 +242,7 @@ func (mw *MyMainWindow) onPlayNext() {
 }
 
 func (mw *MyMainWindow) onPlayPos() {
-	mw.slv.Value()
+	mw.pm.Play(mw.pm.Current(), model.ActionPlay, mw.slv.Value())
 }
 
 func Run() {
@@ -238,11 +250,11 @@ func Run() {
 	walk.Resources.SetRootDirPath("cache")
 
 	mw := &MyMainWindow{
-		playList: NewPlaylist(),
-		ch:       make(chan model.PlayAction),
+		playList:   NewPlaylist(),
+		chPlayback: make(chan model.PlayCallback),
 	}
 	mw.musicList = NewTrackList(mw)
-	mw.pm = model.NewPlayerManager(mw.ch)
+	mw.pm = model.NewPlayerManager(mw.chPlayback)
 
 	mw.init()
 
