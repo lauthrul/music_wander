@@ -1,7 +1,7 @@
 package main
 
 import (
-	"wander/log"
+	"github.com/lauthrul/goutil/log"
 	"wander/ui"
 )
 

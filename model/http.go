@@ -1,9 +1,9 @@
 package model
 
 import (
+	"github.com/lauthrul/goutil/log"
 	"github.com/valyala/fasthttp"
 	"time"
-	"wander/log"
 )
 
 var fc = &fasthttp.Client{}

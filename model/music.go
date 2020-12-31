@@ -5,9 +5,9 @@ import (
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
+	"github.com/lauthrul/goutil/log"
 	"os"
 	"time"
-	"wander/log"
 )
 
 type MusicInfo struct {

@@ -1,8 +1,8 @@
 package model
 
 import (
+	"github.com/lauthrul/goutil/log"
 	"time"
-	"wander/log"
 )
 
 type Action uint

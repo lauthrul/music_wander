@@ -3,11 +3,11 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/lauthrul/goutil/log"
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 	"github.com/lxn/win"
 	"time"
-	"wander/log"
 	"wander/model"
 )
 
@@ -87,7 +87,7 @@ func (mw *MyMainWindow) init() {
 func (mw *MyMainWindow) updateControlPanel(music *model.Music) {
 	img, err := walk.NewImageFromFile(music.Info.MusicPicLocal)
 	if err != nil {
-		log.ErrorF("load music pic err:", err)
+		log.Error("load music pic err:", err)
 		return
 	}
 	mw.imgCover.SetImage(img)
@@ -163,7 +163,7 @@ func (mw *MyMainWindow) onTrackListChanged() {
 
 func (mw *MyMainWindow) play(idx int) {
 	if idx < 0 || idx > len(mw.musicList.items) {
-		log.ErrorF("playlist idx err:", idx)
+		log.Error("playlist idx err:", idx)
 		return
 	}
 	music := mw.musicList.items[idx]
